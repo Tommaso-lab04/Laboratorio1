@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="card">
+  <h1>Statistiche del sistema</h1>
+  <p>Panoramica aggregata di tutti i domini supportati, calcolata sui dati
+     pre-calcolati nel database.</p>
+</div>
+
+{% if error %}
+<div class="card"><div class="err">{{ error }}</div></div>
+{% endif %}
+
+{% if stats %}
+
+<div class="card">
+  <h2>Risorse nel DB</h2>
+  <table>
+    <thead><tr><th>Dominio</th><th>web_resources</th><th>gold_standard</th></tr></thead>
+    <tbody>
+    {% for d, n in stats.web_resources.items() %}
+    <tr>
+      <td>{{ d }}</td>
+      <td>{{ n }}</td>
+      <td>{{ stats.gold_standard.get(d, 0) }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h2>Metriche medie sul Gold Standard</h2>
+  {% if stats.avg_eval %}
+  <table>
+    <thead>
+      <tr>
+        <th>Dominio</th>
+        <th>Token P</th>
+        <th>Token R</th>
+        <th>Token F1</th>
+        <th>Char F1</th>
+        <th>BLEU-1</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for d, m in stats.avg_eval.items() %}
+    <tr>
+      <td>{{ d }}</td>
+      <td>{{ m.token_level_eval.precision }}</td>
+      <td>{{ m.token_level_eval.recall }}</td>
+      <td>{{ m.token_level_eval.f1 }}</td>
+      <td>{{ m.char_overlap_eval.char_f1 if m.char_overlap_eval else "-" }}</td>
+      <td>{{ m.bleu1_eval.bleu1 if m.bleu1_eval else "-" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Nessuna metrica calcolata.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Judge score medio</h2>
+  {% if stats.avg_eval_judge %}
+  <table>
+    <thead><tr><th>Dominio</th><th>Judge score (1-5)</th></tr></thead>
+    <tbody>
+    {% for d, j in stats.avg_eval_judge.items() %}
+    <tr>
+      <td>{{ d }}</td>
+      <td>{{ j.judge_score }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p><small>I giudizi LLM vengono calcolati in background al primo avvio. Se la tabella
+  è vuota o incompleta, riprova fra qualche minuto.</small></p>
+  {% else %}
+  <p>Nessun giudizio LLM disponibile (Ollama non ancora pronto o non raggiungibile).</p>
+  {% endif %}
+</div>
+
+{% endif %}
+
+{% if schema %}
+<div class="card">
+  <h2>Schema database</h2>
+  {% for table, cols in schema.items() %}
+  <h3>{{ table }}</h3>
+  <table>
+    <thead><tr><th>Colonna</th><th>Tipo / chiavi</th></tr></thead>
+    <tbody>
+    {% for col, desc in cols.items() %}
+    <tr><td><code>{{ col }}</code></td><td>{{ desc }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,136 @@
+services:
+
+  database:
+    image: mariadb:11.4
+    container_name: parsing_database
+    restart: unless-stopped
+    environment:
+      - MARIADB_ROOT_PASSWORD=rootpassword
+      - MARIADB_DATABASE=parsing_db
+      - MARIADB_USER=appuser
+      - MARIADB_PASSWORD=apppassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb -h localhost -u appuser -papppassword -e 'SELECT 1' parsing_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: parsing_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./ollama_data:/root/.ollama
+    healthcheck:
+      # Verifica che il server HTTP di Ollama risponda. /api/version è
+      # leggerissimo e disponibile anche mentre il servizio sta scaricando
+      # modelli (al contrario di "ollama list" che a volte si blocca).
+      # I container Ollama recenti hanno wget builtin; in fallback proviamo
+      # con bash + /dev/tcp.
+      test:
+        - CMD-SHELL
+        - "wget -q -O- http://localhost:11434/api/version >/dev/null 2>&1 || bash -c '</dev/tcp/localhost/11434' 2>/dev/null"
+      interval: 10s
+      timeout: 10s
+      retries: 60
+      start_period: 120s
+
+  ollama-puller:
+    # One-shot service che scarica il modello giudice DOPO che ollama è pronto.
+    # Richiesto dalla specifica (slide 38 e 60): il modello deve essere
+    # "importato automaticamente all'avvio". Senza questo container il prof
+    # avrebbe il modello mancante al primo test del Judge.
+    #
+    # Strategia:
+    # 1) Aspetta che Ollama sia healthy (depends_on con condition)
+    # 2) Se il modello è gia' presente (volume persistente) -> exit 0 subito
+    # 3) Altrimenti tenta il pull, con max 3 tentativi
+    # 4) Termina sempre con exit 0 per non bloccare l'avvio in caso di rete KO
+    #    (il backend ha un fallback on-demand al primo /evaluate_judge)
+    image: ollama/ollama:latest
+    container_name: parsing_ollama_puller
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        MODEL="llama3.2:3b"
+        # Skip se gia' presente (riavvii successivi con volume ./ollama_data)
+        if ollama list 2>/dev/null | grep -q "$$MODEL"; then
+          echo "[puller] $$MODEL gia' presente, skip download";
+          exit 0;
+        fi
+        echo "[puller] download di $$MODEL in corso (può richiedere alcuni minuti)..."
+        # Massimo 3 tentativi: se la rete cade, ritenta invece di morire
+        for i in 1 2 3; do
+          if ollama pull "$$MODEL"; then
+            echo "[puller] $$MODEL scaricato con successo";
+            exit 0;
+          fi
+          echo "[puller] tentativo $$i fallito, riprovo tra 5s...";
+          sleep 5;
+        done
+        echo "[puller] pull fallito dopo 3 tentativi. Il backend riprovera' on-demand al primo /evaluate_judge."
+        exit 0
+    restart: "no"
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: parsing_backend
+    ports:
+      - "8003:8003"
+    environment:
+      - GS_DATA_PATH=/app/gs_data
+      - DOMAINS_FILE=/app/domains.json
+      - DB_HOST=database
+      - DB_PORT=3306
+      - DB_USER=appuser
+      - DB_PASSWORD=apppassword
+      - DB_NAME=parsing_db
+      - OLLAMA_URL=http://ollama:11434
+      - JUDGE_MODEL=llama3.2:3b
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      database:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8003/health', timeout=3).status == 200 else sys.exit(1)"
+      interval: 15s
+      timeout: 5s
+      retries: 30
+      start_period: 300s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: parsing_frontend
+    ports:
+      - "8004:8004"
+    environment:
+      - BACKEND_URL=http://backend:8003
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped

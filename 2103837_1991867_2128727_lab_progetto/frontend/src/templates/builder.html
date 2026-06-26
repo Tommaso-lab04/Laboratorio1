@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="card">
+  <h1>Gold Standard Builder</h1>
+  <p>Aggiungi nuove entry al Gold Standard, copia manualmente il testo
+     informativo dalla pagina, oppure elimina entry esistenti.</p>
+
+  <form method="get" action="/builder">
+    <div class="grid-2">
+      <div>
+        <label>Dominio</label>
+        <select name="domain" onchange="this.form.submit()">
+          {% for d in domains %}
+          <option value="{{ d }}" {% if d == selected_domain %}selected{% endif %}>{{ d }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>URL da scaricare</label>
+        <input type="text" name="url" placeholder="https://..."
+               value="{{ submitted_url }}">
+      </div>
+    </div>
+    <br>
+    <input type="submit" value="Scarica HTML">
+  </form>
+</div>
+
+{% if error %}
+<div class="card"><div class="err">{{ error }}</div></div>
+{% endif %}
+
+{% if message %}
+<div class="card"><div class="ok-msg">{{ message }}</div></div>
+{% endif %}
+
+{% if html_text %}
+<div class="card">
+  <h2>Inserisci nel Gold Standard</h2>
+  <form method="post" action="/builder/save">
+    <input type="hidden" name="domain" value="{{ selected_domain }}">
+    <input type="hidden" name="url" value="{{ submitted_url }}">
+
+    <label>HTML scaricato (modificabile)</label>
+    <textarea name="html_text" rows="12">{{ html_text }}</textarea>
+
+    <label>Output del parser (in Markdown, solo riferimento)</label>
+    <textarea rows="8" readonly>{{ parsed_text }}</textarea>
+
+    <label>Gold text (incolla il testo informativo dalla pagina aperta nel browser)</label>
+    <textarea name="gold_text" rows="14"
+              placeholder="Apri l'URL nel browser, copia titolo + corpo dell'articolo (no menu/footer/banner) e incolla qui."></textarea>
+
+    <br><br>
+    <input type="submit" value="Salva nel database">
+  </form>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>URL già presenti nel GS per <em>{{ selected_domain }}</em></h2>
+  {% if gs_urls %}
+  <table>
+    <thead><tr><th>URL</th><th style="width: 120px;">Azione</th></tr></thead>
+    <tbody>
+    {% for u in gs_urls %}
+    <tr>
+      <td><a href="/builder?domain={{ selected_domain }}&url={{ u }}">{{ u }}</a></td>
+      <td>
+        <form method="post" action="/builder/delete" style="margin:0;">
+          <input type="hidden" name="domain" value="{{ selected_domain }}">
+          <input type="hidden" name="url" value="{{ u }}">
+          <button class="danger" type="submit"
+                  onclick="return confirm('Eliminare {{ u }} dal GS?');">Elimina</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p><small>{{ gs_urls|length }} risultati</small></p>
+  {% else %}
+  <p>Nessuna entry per questo dominio.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

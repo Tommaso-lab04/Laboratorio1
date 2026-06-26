@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="card">
+  <h1>Parser &amp; Evaluation</h1>
+  <p>Inserisci un URL o seleziona uno dal Gold Standard per eseguire il parser
+     e visualizzare le metriche di valutazione.</p>
+
+  <form method="post" action="/parser">
+    <label>URL di test</label>
+    <input type="text" name="url" placeholder="https://it.wikipedia.org/wiki/..."
+           value="{{ submitted_url or '' }}" required>
+
+    <label>oppure scegli dal Gold Standard</label>
+    <select name="url_dropdown" onchange="document.querySelector('input[name=url]').value = this.value;">
+      <option value="">-- seleziona --</option>
+      {% for u in gs_urls %}
+      <option value="{{ u }}" {% if submitted_url == u %}selected{% endif %}>{{ u }}</option>
+      {% endfor %}
+    </select>
+
+    <label>Modalità</label>
+    <div class="radio-row">
+      <label><input type="radio" name="mode" value="live"
+        {% if mode != 'local' %}checked{% endif %}> Live (scarica dal web)</label>
+      <label><input type="radio" name="mode" value="local"
+        {% if mode == 'local' %}checked{% endif %}> Local (usa HTML dal DB)</label>
+    </div>
+
+    <br>
+    <input type="submit" value="Esegui parsing e valutazione">
+  </form>
+</div>
+
+{% if error %}
+<div class="card"><div class="err">Errore: {{ error }}</div></div>
+{% endif %}
+
+{% if result %}
+<div class="card">
+  <h2>{{ result.title or "(nessun titolo)" }}</h2>
+  <p><strong>URL:</strong> {{ result.url }}</p>
+  <p><strong>Dominio:</strong> {{ result.domain }}</p>
+
+  <div class="grid-2">
+    <div>
+      <h3>Input HTML (grezzo)</h3>
+      <textarea rows="18" readonly>{{ result.html_text[:8000] }}{% if result.html_text|length > 8000 %}
+
+[... troncato, {{ result.html_text|length }} caratteri totali ...]{% endif %}</textarea>
+    </div>
+    <div>
+      <h3>Output parsed (Markdown)</h3>
+      <textarea rows="18" readonly>{{ result.parsed_text }}</textarea>
+    </div>
+  </div>
+
+  {% if gs_entry %}
+  <h3>Gold text</h3>
+  <textarea rows="10" readonly>{{ gs_entry.gold_text }}</textarea>
+  {% endif %}
+
+  {% if eval_result %}
+  <h3>Metriche di valutazione</h3>
+  <div>
+    <div class="metric-box">
+      <div class="label">Precision</div>
+      <div class="val">{{ eval_result.token_level_eval.precision }}</div>
+    </div>
+    <div class="metric-box">
+      <div class="label">Recall</div>
+      <div class="val">{{ eval_result.token_level_eval.recall }}</div>
+    </div>
+    <div class="metric-box">
+      <div class="label">F1</div>
+      <div class="val">{{ eval_result.token_level_eval.f1 }}</div>
+    </div>
+    {% if eval_result.char_overlap_eval %}
+    <div class="metric-box">
+      <div class="label">Char F1</div>
+      <div class="val">{{ eval_result.char_overlap_eval.char_f1 }}</div>
+    </div>
+    {% endif %}
+    {% if eval_result.bleu1_eval %}
+    <div class="metric-box">
+      <div class="label">BLEU-1</div>
+      <div class="val">{{ eval_result.bleu1_eval.bleu1 }}</div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if judge_result %}
+  <h3>LLM-as-Judge</h3>
+  <p><strong>Modello:</strong> {{ judge_result.model_name }}</p>
+  <div class="metric-box">
+    <div class="label">Score</div>
+    <div class="val">{{ judge_result.judge_score }} / 5</div>
+  </div>
+  <p><strong>Feedback:</strong> {{ judge_result.judge_feedback }}</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

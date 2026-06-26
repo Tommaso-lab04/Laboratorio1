@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="card">
+  <h1>Web Parsing Pipeline</h1>
+  <p>Costruzione di una pipeline end-to-end per acquisire e analizzare documenti
+     da sorgenti web eterogenee, con metriche di valutazione automatiche e LLM-as-Judge.</p>
+</div>
+
+<div class="grid-3">
+  <a href="/parser" class="card" style="text-decoration:none; color:inherit; text-align:center;">
+    <h2 style="margin:0;">Parser &amp; Evaluation</h2>
+    <p>Testa i parser su un URL e visualizza le metriche.</p>
+  </a>
+  <a href="/builder" class="card" style="text-decoration:none; color:inherit; text-align:center;">
+    <h2 style="margin:0;">Gold Standard</h2>
+    <p>Aggiungi, modifica o elimina entry del Gold Standard.</p>
+  </a>
+  <a href="/stats" class="card" style="text-decoration:none; color:inherit; text-align:center;">
+    <h2 style="margin:0;">Stats</h2>
+    <p>Statistiche aggregate su parser e judge.</p>
+  </a>
+</div>
+
+<div class="card">
+  <h2>Membri del gruppo</h2>
+  <div class="grid-3">
+    {% for m in matricole %}
+    <div>
+      <strong>{{ m.name }}</strong><br>
+      <small>Matricola: {{ m.matricola }}</small>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <h2>Stato del sistema</h2>
+  <p>
+    Backend
+    <span class="status-pill {{ 'ok' if status.backend == 'ok' else 'error' }}">
+      {{ status.backend }}
+    </span>
+  </p>
+  <p>
+    MariaDB
+    <span class="status-pill {{ 'ok' if status.database == 'ok' else 'error' }}">
+      {{ status.database }}
+    </span>
+  </p>
+  <p>
+    Ollama
+    <span class="status-pill {{ 'ok' if status.ollama == 'ok' else 'error' }}">
+      {{ status.ollama }}
+    </span>
+  </p>
+</div>
+
+<div class="card">
+  <h2>Domini supportati</h2>
+  <ul>
+    {% for d in domains %}
+    <li>🌐 {{ d }}</li>
+    {% endfor %}
+  </ul>
+</div>
+
+{% endblock %}
